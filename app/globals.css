@@ -4,117 +4,103 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Celler basement casino / amber + zinc palette */
+  /* Vegas Casino Neon Theme */
+  /* Deep black background (casino basement) */
+  --background: oklch(0.08 0.01 0);
+  /* Bright white/cream text */
+  --foreground: oklch(0.97 0.01 60);
 
-  /* Deep neutral background (close to zinc-950 but a bit warm) */
-  --background: oklch(0.13 0.02 40);
-  /* Warm off-white / parchment (zinc/amber mix) */
-  --foreground: oklch(0.96 0.03 90);
+  /* Card: slightly elevated dark */
+  --card: oklch(0.14 0.01 0);
+  --card-foreground: oklch(0.97 0.01 60);
 
-  /* Cards slightly lifted from background */
-  --card: oklch(0.18 0.02 40);
-  --card-foreground: oklch(0.96 0.03 90);
+  --popover: oklch(0.14 0.01 0);
+  --popover-foreground: oklch(0.97 0.01 60);
 
-  --popover: oklch(0.18 0.02 40);
-  --popover-foreground: oklch(0.96 0.03 90);
+  /* Primary: neon gold/amber (Vegas glow) */
+  --primary: oklch(0.8 0.18 70);
+  --primary-foreground: oklch(0.08 0.01 0);
 
-  /* Primary: amber-gold (button like bg-amber-500) */
-  --primary: oklch(0.72 0.16 75);
-  --primary-foreground: oklch(0.13 0.02 40);
+  /* Secondary: neon cyan (electric) */
+  --secondary: oklch(0.75 0.2 195);
+  --secondary-foreground: oklch(0.08 0.01 0);
 
-  /* Secondary: bottle/teal green accent */
-  --secondary: oklch(0.55 0.12 160);
-  --secondary-foreground: oklch(0.96 0.03 90);
+  /* Muted: dim text */
+  --muted: oklch(0.35 0.02 60);
+  --muted-foreground: oklch(0.68 0.05 80);
 
-  /* Muted surfaces / text */
-  --muted: oklch(0.26 0.02 40);
-  --muted-foreground: oklch(0.72 0.03 80);
+  /* Accent: neon emerald (winning) */
+  --accent: oklch(0.75 0.18 155);
+  --accent-foreground: oklch(0.08 0.01 0);
 
-  /* Accent: lighter amber highlight (similar to text-amber-300) */
-  --accent: oklch(0.8 0.15 85);
-  --accent-foreground: oklch(0.16 0.02 40);
+  /* Destructive: neon red */
+  --destructive: oklch(0.65 0.25 20);
+  --destructive-foreground: oklch(0.97 0.01 60);
 
-  /* Destructive stays red but only used for errors */
-  --destructive: oklch(0.58 0.25 27);
-  --destructive-foreground: oklch(0.98 0.03 95);
+  /* Borders: subtle gold */
+  --border: oklch(0.22 0.06 70);
+  --input: oklch(0.12 0.01 0);
 
-  /* Borders / inputs */
-  --border: oklch(0.22 0.02 40);
-  --input: oklch(0.16 0.02 40);
+  /* Focus ring: bright gold glow */
+  --ring: oklch(0.85 0.2 70);
 
-  /* Focus ring = golden glow */
-  --ring: oklch(0.8 0.15 85);
-
-  /* Charts – amber + green + teal, no bright red primary line */
-  --chart-1: oklch(0.72 0.16 75);  /* amber */
-  --chart-2: oklch(0.6 0.12 160);  /* teal-green */
-  --chart-3: oklch(0.8 0.15 85);   /* lighter gold */
-  --chart-4: oklch(0.5 0.08 200);  /* muted blue-teal */
-  --chart-5: oklch(0.64 0.1 145);  /* soft emerald */
+  /* Charts */
+  --chart-1: oklch(0.8 0.18 70);   /* gold */
+  --chart-2: oklch(0.75 0.2 195);  /* cyan */
+  --chart-3: oklch(0.75 0.18 155); /* emerald */
+  --chart-4: oklch(0.65 0.25 20);  /* red */
+  --chart-5: oklch(0.7 0.2 290);   /* purple */
 
   --radius: 0.625rem;
 
-  /* Sidebar same world as cards */
-  --sidebar: oklch(0.16 0.02 40);
-  --sidebar-foreground: oklch(0.96 0.03 90);
-  --sidebar-primary: oklch(0.72 0.16 75);
-  --sidebar-primary-foreground: oklch(0.13 0.02 40);
-  --sidebar-accent: oklch(0.8 0.15 85);
-  --sidebar-accent-foreground: oklch(0.16 0.02 40);
-  --sidebar-border: oklch(0.22 0.02 40);
-  --sidebar-ring: oklch(0.8 0.15 85);
+  --sidebar: oklch(0.12 0.01 0);
+  --sidebar-foreground: oklch(0.97 0.01 60);
+  --sidebar-primary: oklch(0.8 0.18 70);
+  --sidebar-primary-foreground: oklch(0.08 0.01 0);
+  --sidebar-accent: oklch(0.75 0.18 155);
+  --sidebar-accent-foreground: oklch(0.08 0.01 0);
+  --sidebar-border: oklch(0.22 0.06 70);
+  --sidebar-ring: oklch(0.85 0.2 70);
 }
 
 .dark {
-  /* Dark mode: same palette, slightly deeper background */
-  --background: oklch(0.1 0.02 40);
-  --foreground: oklch(0.96 0.03 90);
-
-  --card: oklch(0.16 0.02 40);
-  --card-foreground: oklch(0.96 0.03 90);
-
-  --popover: oklch(0.16 0.02 40);
-  --popover-foreground: oklch(0.96 0.03 90);
-
-  --primary: oklch(0.72 0.16 75);
-  --primary-foreground: oklch(0.13 0.02 40);
-
-  --secondary: oklch(0.55 0.12 160);
-  --secondary-foreground: oklch(0.96 0.03 90);
-
-  --muted: oklch(0.24 0.02 40);
-  --muted-foreground: oklch(0.72 0.03 80);
-
-  --accent: oklch(0.8 0.15 85);
-  --accent-foreground: oklch(0.16 0.02 40);
-
-  --destructive: oklch(0.58 0.25 27);
-  --destructive-foreground: oklch(0.98 0.03 95);
-
-  --border: oklch(0.22 0.02 40);
-  --input: oklch(0.15 0.02 40);
-  --ring: oklch(0.8 0.15 85);
-
-  --chart-1: oklch(0.72 0.16 75);
-  --chart-2: oklch(0.6 0.12 160);
-  --chart-3: oklch(0.8 0.15 85);
-  --chart-4: oklch(0.5 0.08 200);
-  --chart-5: oklch(0.64 0.1 145);
-
-  --sidebar: oklch(0.14 0.02 40);
-  --sidebar-foreground: oklch(0.96 0.03 90);
-  --sidebar-primary: oklch(0.72 0.16 75);
-  --sidebar-primary-foreground: oklch(0.13 0.02 40);
-  --sidebar-accent: oklch(0.8 0.15 85);
-  --sidebar-accent-foreground: oklch(0.16 0.02 40);
-  --sidebar-border: oklch(0.22 0.02 40);
-  --sidebar-ring: oklch(0.8 0.15 85);
+  --background: oklch(0.08 0.01 0);
+  --foreground: oklch(0.97 0.01 60);
+  --card: oklch(0.14 0.01 0);
+  --card-foreground: oklch(0.97 0.01 60);
+  --popover: oklch(0.14 0.01 0);
+  --popover-foreground: oklch(0.97 0.01 60);
+  --primary: oklch(0.8 0.18 70);
+  --primary-foreground: oklch(0.08 0.01 0);
+  --secondary: oklch(0.75 0.2 195);
+  --secondary-foreground: oklch(0.08 0.01 0);
+  --muted: oklch(0.35 0.02 60);
+  --muted-foreground: oklch(0.68 0.05 80);
+  --accent: oklch(0.75 0.18 155);
+  --accent-foreground: oklch(0.08 0.01 0);
+  --destructive: oklch(0.65 0.25 20);
+  --destructive-foreground: oklch(0.97 0.01 60);
+  --border: oklch(0.22 0.06 70);
+  --input: oklch(0.12 0.01 0);
+  --ring: oklch(0.85 0.2 70);
+  --chart-1: oklch(0.8 0.18 70);
+  --chart-2: oklch(0.75 0.2 195);
+  --chart-3: oklch(0.75 0.18 155);
+  --chart-4: oklch(0.65 0.25 20);
+  --chart-5: oklch(0.7 0.2 290);
+  --sidebar: oklch(0.12 0.01 0);
+  --sidebar-foreground: oklch(0.97 0.01 60);
+  --sidebar-primary: oklch(0.8 0.18 70);
+  --sidebar-primary-foreground: oklch(0.08 0.01 0);
+  --sidebar-accent: oklch(0.75 0.18 155);
+  --sidebar-accent-foreground: oklch(0.08 0.01 0);
+  --sidebar-border: oklch(0.22 0.06 70);
+  --sidebar-ring: oklch(0.85 0.2 70);
 }
 
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
-
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -139,12 +125,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -163,3 +147,48 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Vegas casino animations */
+@keyframes neon-glow {
+  0%, 100% { text-shadow: 0 0 10px rgba(251, 191, 36, 0.8), 0 0 20px rgba(251, 191, 36, 0.5); }
+  50% { text-shadow: 0 0 20px rgba(251, 191, 36, 1), 0 0 40px rgba(251, 191, 36, 0.8); }
+}
+
+@keyframes reel-spin {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+
+@keyframes reel-bounce {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.95); }
+}
+
+@keyframes neon-pulse {
+  0%, 100% { opacity: 0.8; box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
+  50% { opacity: 1; box-shadow: 0 0 40px rgba(251, 191, 36, 1); }
+}
+
+@keyframes win-sparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(1.15) rotate(5deg); opacity: 0.8; }
+}
+
+@keyframes coin-drop {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes float-up {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-60px); opacity: 0; }
+}
+
+.animate-neon-glow { animation: neon-glow 2s ease-in-out infinite; }
+.animate-reel-spin { animation: reel-spin 0.8s ease-in; }
+.animate-reel-bounce { animation: reel-bounce 0.6s ease-out; }
+.animate-neon-pulse { animation: neon-pulse 2s ease-in-out infinite; }
+.animate-win-sparkle { animation: win-sparkle 0.6s ease-in-out; }
+.animate-coin-drop { animation: coin-drop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.animate-float-up { animation: float-up 1s ease-out forwards; }
