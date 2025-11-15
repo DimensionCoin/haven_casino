@@ -12,6 +12,7 @@ import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { connectDb } from "@/lib/db";
 import Treasury from "@/models/Treasury";
 import ChipVault from "@/models/ChipVault";
+import { getOnChainCasinoUsdcBalance } from "@/lib/onchain"; // 👈 aggregated backing helper
 
 /* ============================================================================
    ENV & RPC
@@ -83,6 +84,8 @@ export async function GET() {
       casinoUsdcOnChain,
       treasurySol,
       treasuryUsdcOnChain,
+      // 👇 this should sum everything that backs chips (casino wallet + any vault wallets)
+      backingUsdcRaw,
       vaultDoc,
       casinoTreasuryDoc,
       mainTreasuryDoc,
@@ -91,30 +94,41 @@ export async function GET() {
       getUsdcBalance(CASINO_WALLET),
       getSolBalance(TREASURY_WALLET),
       getUsdcBalance(TREASURY_WALLET),
-      ChipVault.findOne({ token: "USDC" }).lean(),
-      // Treasury row that uses CASINO_WALLET (you may or may not use this)
+      getOnChainCasinoUsdcBalance().catch(() => null),
+      // Always grab the latest vault snapshot (in case multiple docs exist)
+      ChipVault.findOne({ token: "USDC" }).sort({ updatedAt: -1 }).lean(),
       Treasury.findOne({ walletAddress: CASINO_WALLET }).lean(),
-      // Main external treasury / fee collector
       Treasury.findOne({ walletAddress: TREASURY_WALLET }).lean(),
     ]);
 
     // ---------------- Vault data (ChipVault) ----------------
-    const chipsInCirculation = vaultDoc?.chipsInCirculation ?? 0;
-    const casinoVirtualBalance = vaultDoc?.casinoVirtualBalance ?? 0;
+    const chipsInCirculation = vaultDoc?.chipsInCirculation ?? 0; // users + house
+    const casinoVirtualBalance = vaultDoc?.casinoVirtualBalance ?? 0; // house float in chips
     const lastUsdcBalance =
       typeof vaultDoc?.lastUsdcBalance === "number"
         ? vaultDoc.lastUsdcBalance
         : null;
 
-    // Simple solvency view: on-chain USDC vs total chips issued
-    const solvencyGap = casinoUsdcOnChain - chipsInCirculation;
-    const solvencyOk = solvencyGap >= -1e-6; // small tolerance
+    // Effective backing = what we actually count as solvency capital
+    // Prefer the aggregated helper; fall back to casino+treasury; finally last snapshot
+    const backingUsdcCurrent =
+      typeof backingUsdcRaw === "number" && !Number.isNaN(backingUsdcRaw)
+        ? backingUsdcRaw
+        : casinoUsdcOnChain + treasuryUsdcOnChain || lastUsdcBalance || 0;
+
+    // Core solvency check: can we pay all chips back 1:1 right now?
+    const solvencyGap = backingUsdcCurrent - chipsInCirculation; // USDC - chips
+    const solvencyOk = solvencyGap >= -1e-6; // small negative tolerance for float drift
+
+    // Optional ratio if you want to show e.g. 1.03x overcollateralized
+    const solvencyRatio =
+      chipsInCirculation > 0 ? backingUsdcCurrent / chipsInCirculation : null;
 
     // ---------------- Treasury data (virtual balances) ----------------
     const treasuryVirtual = mainTreasuryDoc?.virtualBalance ?? 0;
     const treasuryFees = mainTreasuryDoc?.totalFeesCollected ?? 0;
 
-    // If you want to surface whatever you store on Treasury for CASINO_WALLET:
+    // If you track a Treasury row for CASINO_WALLET separately:
     const casinoVirtualFromTreasury = casinoTreasuryDoc?.virtualBalance ?? 0;
 
     return NextResponse.json(
@@ -126,19 +140,31 @@ export async function GET() {
           usdcOnChain: casinoUsdcOnChain,
           // chips held by the house that can be used for payouts
           virtualChips: casinoVirtualBalance,
-          // optional: if you also keep a row in Treasury for CASINO_WALLET
+          // optional: if you also store credits for CASINO_WALLET in Treasury
           virtualCreditsFromTreasury: casinoVirtualFromTreasury,
         },
 
-        // Global vault info (ChipVault)
+        // Global vault info (ChipVault) – this is what your solvency UI should key off
         vault: {
           token: vaultDoc?.token ?? "USDC",
           casinoWallet: vaultDoc?.casinoWallet ?? CASINO_WALLET,
-          chipsInCirculation, // 🔥 circulating supply (users + house)
-          casinoVirtualBalance, // 🔥 house float (virtual wallet for casino)
+
+          // 🔥 circulating supply of chips in the system (users + house)
+          chipsInCirculation,
+
+          // 🔥 house float in chips
+          casinoVirtualBalance,
+
+          // Historical snapshot of backing when you last reconciled
           lastUsdcBalance,
+
+          // 🔥 live on-chain backing you're actually counting for solvency
+          backingUsdcCurrent,
+
+          // Core solvency metrics
+          solvencyGap, // USDC - chips (negative = deficit)
           solvencyOk,
-          solvencyGap, // on-chain USDC - chipsInCirculation
+          solvencyRatio, // e.g. 1.02 → 102% backed, null if no chips
         },
 
         // External treasury / fee collector

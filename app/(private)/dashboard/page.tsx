@@ -22,7 +22,7 @@ const GAME_VISUALS: Record<
     icon: "🎰",
     gradient: "from-red-700 to-amber-500",
   },
-  dice: {
+  linebreaker: {
     icon: "🎲",
     gradient: "from-emerald-700 to-teal-500",
   },

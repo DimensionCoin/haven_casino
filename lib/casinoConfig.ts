@@ -1,7 +1,7 @@
 // lib/casinoConfig.ts
 export type CasinoGameId =
   | "slots"
-  | "dice"
+  | "linebreaker"
   | "roulette"
   | "highlow"
   | "cointoss"
@@ -28,10 +28,10 @@ export const CASINO_GAMES: CasinoGameConfig[] = [
     enabled: true,
   },
   {
-    id: "dice",
-    name: "Dice Roll",
-    description: "Roll the dice and call it.",
-    route: "/dice",
+    id: "linebreaker",
+    name: "Line Breaker",
+    description: "line breaker",
+    route: "/linebreaker",
     enabled: true,
   },
   {

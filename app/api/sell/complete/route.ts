@@ -1,3 +1,4 @@
+// app/api/sell/complete/route.ts
 import { NextResponse } from "next/server";
 import { connectDb } from "@/lib/db";
 import User, { type IUser } from "@/models/User";
@@ -16,6 +17,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Schema, model, models, type Document, type Model } from "mongoose";
+import { burnUserChips } from "@/lib/chipVault"; // 👈 NEW
 
 /* ============================================================================
    ENV & RPC
@@ -190,7 +192,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4) Check casino has enough USDC
+    // 4) Check casino has enough USDC (on-chain backing)
     const casinoAta = await getAssociatedTokenAddress(usdcMintPk, casinoPubkey);
     const userAta = await getAssociatedTokenAddress(usdcMintPk, userPubkey);
 
@@ -253,13 +255,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // 6) Decrement chips in Mongo
+    // 6) Burn chips in vault (global supply ↓) and update user chips
+    try {
+      await burnUserChips(normalizedWallet, chipsToRedeem);
+    } catch (burnErr) {
+      console.error("[sell/complete] burnUserChips error:", burnErr);
+      // At this point USDC already left the vault; you may want alerts
+      // or a compensating script if this ever throws.
+    }
+
+    // Optionally update lastSeenAt without touching balances
     await User.updateOne(
       { walletAddress: normalizedWallet },
-      {
-        $inc: { virtualBalance: -chipsToRedeem },
-        $set: { lastSeenAt: new Date() },
-      }
+      { $set: { lastSeenAt: new Date() } }
     );
 
     const updatedUser = await User.findOne({

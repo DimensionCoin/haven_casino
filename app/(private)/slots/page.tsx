@@ -91,7 +91,7 @@ class VegasSoundEngine {
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + duration);
     } catch (e) {
-      console.warn("Audio context failed");
+      console.warn("Audio context failed", e);
     }
   }
 
@@ -139,7 +139,6 @@ export default function SlotsGame() {
   const { user, virtualBalance, refreshVirtualBalance } = useUser();
   const {
     games,
-    treasuryUsdcBalance,
     houseReserve,
     loading: casinoLoading,
   } = useCasino();

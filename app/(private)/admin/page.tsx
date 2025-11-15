@@ -15,22 +15,26 @@ if (typeof window !== "undefined") {
   window.Buffer = window.Buffer || Buffer;
 }
 
-/* ======================= Types ======================= */
+/* ======================= Types (mirror API) ======================= */
 
 type AdminOverview = {
   casino: {
     wallet: string;
     solBalance?: number;
     usdcOnChain?: number;
-    virtualChips?: number; // house-held chips (from Treasury CASINO_WALLET)
+    virtualChips?: number; // house-held chips (ChipVault.casinoVirtualBalance)
+    virtualCreditsFromTreasury?: number; // optional
   };
   vault?: {
     token?: string;
+    casinoWallet?: string;
     chipsInCirculation?: number;
-    lastUsdcBalance?: number | null;
     casinoVirtualBalance?: number | null;
+    lastUsdcBalance?: number | null;
+    backingUsdcCurrent?: number | null; // live backing USDC (all vault wallets)
     solvencyOk?: boolean;
-    solvencyGap?: number; // on-chain USDC - chipsInCirculation
+    solvencyGap?: number; // backingUsdcCurrent - chipsInCirculation
+    solvencyRatio?: number | null; // backing / chips (1.0 = fully backed)
   };
   treasury: {
     wallet: string;
@@ -42,6 +46,8 @@ type AdminOverview = {
 };
 
 type OverviewResponse = AdminOverview | { error?: string };
+
+/* ======================= Page ======================= */
 
 export default function AdminPage() {
   const { publicKey, connected, sendTransaction } = useWallet();
@@ -79,7 +85,11 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch("/api/admin/casino/overview");
+      const res = await fetch("/api/admin/casino/overview", {
+        method: "GET",
+        cache: "no-store",
+      });
+
       const json = (await res
         .json()
         .catch(() => null)) as OverviewResponse | null;
@@ -92,7 +102,6 @@ export default function AdminPage() {
         throw new Error(message);
       }
 
-      // If server returned an error shape but res.ok was true (weird, but safe-guard)
       if ("error" in json && json.error) {
         throw new Error(json.error);
       }
@@ -135,11 +144,29 @@ export default function AdminPage() {
 
   const vaultChipsInCirculation = data?.vault?.chipsInCirculation ?? 0;
   const vaultLastUsdc = data?.vault?.lastUsdcBalance ?? null;
+  const vaultBackingUsdcCurrent =
+    data?.vault?.backingUsdcCurrent ??
+    casinoUsdcOnChain +
+      treasuryUsdcOnChain; /* fallback: casino + treasury on-chain */
+
+  const vaultSolvencyGap =
+    typeof data?.vault?.solvencyGap === "number"
+      ? data.vault.solvencyGap
+      : vaultBackingUsdcCurrent - vaultChipsInCirculation;
+
   const vaultSolvencyOk =
     typeof data?.vault?.solvencyOk === "boolean"
-      ? data?.vault?.solvencyOk
-      : true;
-  const vaultSolvencyGap = data?.vault?.solvencyGap ?? 0;
+      ? data.vault.solvencyOk
+      : vaultSolvencyGap >= -1e-6;
+
+  const vaultSolvencyRatio =
+    data?.vault?.solvencyRatio ??
+    (vaultChipsInCirculation > 0
+      ? vaultBackingUsdcCurrent / vaultChipsInCirculation
+      : null);
+
+  // House chips vs user chips (derived)
+  const userChips = Math.max(vaultChipsInCirculation - casinoVirtualChips, 0); // liability to players
 
   // For pool math, we care about the house's virtual chips, not user chips
   const baseForPools = casinoVirtualChips;
@@ -152,6 +179,13 @@ export default function AdminPage() {
   );
 
   const gamesPoolUsdc = Math.max(roulettePoolUsdc + otherGamesUsdc, 0);
+
+  const solvencyLabel =
+    vaultSolvencyRatio == null
+      ? "No chips in circulation"
+      : vaultSolvencyRatio >= 1
+      ? "Fully backed"
+      : "Under-backed";
 
   /* ======================= Admin deposit handler ======================= */
 
@@ -256,10 +290,36 @@ export default function AdminPage() {
     <main className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold">Admin Panel</h1>
-          <p className="text-sm text-muted-foreground">
-            Overview of on-chain balances, house chips, and casino solvency.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold">Admin Panel</h1>
+              <p className="text-sm text-muted-foreground">
+                Live view of on-chain balances, chip supply, and casino
+                solvency.
+              </p>
+            </div>
+
+            {/* High-level solvency badge */}
+            {data && (
+              <div
+                className={[
+                  "rounded-full px-4 py-2 text-xs font-semibold border",
+                  vaultSolvencyOk
+                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
+                    : "border-destructive/60 bg-destructive/10 text-destructive",
+                ].join(" ")}
+              >
+                {vaultSolvencyRatio == null ? (
+                  <span>No chips in circulation</span>
+                ) : (
+                  <span>
+                    {solvencyLabel} • {(vaultSolvencyRatio * 100).toFixed(1)}%
+                    backed
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </header>
 
         {loading && (
@@ -288,6 +348,7 @@ export default function AdminPage() {
                     <span className="text-muted-foreground">USDC on-chain</span>
                     <span>{casinoUsdcOnChain.toFixed(4)} USDC</span>
                   </div>
+                  <Separator className="my-2" />
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
                       House virtual chips
@@ -331,24 +392,46 @@ export default function AdminPage() {
             </div>
 
             {/* Vault / solvency panel */}
-            <Card>
+            <Card
+              className={
+                vaultSolvencyOk ? "" : "border-destructive/60 bg-destructive/5"
+              }
+            >
               <CardHeader>
                 <CardTitle>Chip Vault & Solvency</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Global minted chips vs real USDC backing in the casino vault.
+                  Global minted chips vs the real USDC backing them 1:1 across
+                  all vault wallets.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                {/* Supply breakdown */}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     Chips in circulation (users + house)
                   </span>
                   <span>{vaultChipsInCirculation.toFixed(2)} chips</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">House chips</span>
+                  <span>{casinoVirtualChips.toFixed(2)} chips</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">User chips</span>
+                  <span>{userChips.toFixed(2)} chips</span>
+                </div>
+
+                <Separator className="my-2" />
 
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
-                    Last recorded USDC backing
+                    Current backing USDC (all vault wallets)
+                  </span>
+                  <span>{vaultBackingUsdcCurrent.toFixed(4)} USDC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Last recorded USDC backing snapshot
                   </span>
                   <span>
                     {vaultLastUsdc !== null
@@ -359,12 +442,6 @@ export default function AdminPage() {
 
                 <Separator className="my-2" />
 
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Current on-chain USDC
-                  </span>
-                  <span>{casinoUsdcOnChain.toFixed(4)} USDC</span>
-                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     Solvency gap (USDC - chips)
@@ -380,6 +457,33 @@ export default function AdminPage() {
                     {vaultSolvencyOk ? "(OK)" : "(DEFICIT)"}
                   </span>
                 </div>
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Coverage ratio (backing ÷ chips)
+                  </span>
+                  <span
+                    className={
+                      vaultSolvencyRatio == null
+                        ? "text-muted-foreground"
+                        : vaultSolvencyOk
+                        ? "text-emerald-400 font-semibold"
+                        : "text-destructive font-semibold"
+                    }
+                  >
+                    {vaultSolvencyRatio == null
+                      ? "—"
+                      : `${(vaultSolvencyRatio * 100).toFixed(1)}%`}
+                  </span>
+                </div>
+
+                {!vaultSolvencyOk && (
+                  <p className="text-xs text-destructive mt-2">
+                    Warning: You do not currently have enough USDC backing to
+                    redeem all chips 1:1. Consider pausing new bets and topping
+                    up the vault.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -388,7 +492,7 @@ export default function AdminPage() {
               <CardHeader>
                 <CardTitle>Casino Pool Allocation</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Split of house-held chips based on config percentages.
+                  Split of house-held chips across reserve and game pools.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">

@@ -351,3 +351,67 @@ export async function applyPayout(walletAddress: string, amount: number) {
     await session.endSession();
   }
 }
+
+/* ============================================================================
+   Burning (user redeems chips → USDC)
+   ============================================================================ */
+
+/**
+ * Burn chips when a user CASHES OUT to USDC.
+ *
+ * This does **NOT** touch casinoVirtualBalance because
+ * we're removing user-owned chips from global supply.
+ *
+ * Flow (paired with /sell route):
+ * 1. Check user has `amount` chips.
+ * 2. Decrement user.virtualBalance by amount.
+ * 3. Decrement vault.chipsInCirculation by amount.
+ * 4. Optionally refresh lastUsdcBalance snapshot from chain.
+ */
+export async function burnUserChips(
+  walletAddress: string,
+  amount: number
+): Promise<void> {
+  if (amount <= 0) throw new Error("burn amount must be > 0");
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const vault = await getOrCreateVault(session);
+
+      const user = await UserModel.findOne({ walletAddress }).session(session);
+
+      if (!user) {
+        throw new Error("User not found for burnUserChips");
+      }
+
+      const currentChips = user.virtualBalance ?? 0;
+
+      if (currentChips < amount) {
+        throw new Error(
+          `User has insufficient chips to burn. Have ${currentChips}, need ${amount}`
+        );
+      }
+
+      // USER: subtract chips
+      user.virtualBalance = roundToCents(currentChips - amount);
+
+      // VAULT: reduce global supply
+      const newSupply = roundToCents(vault.chipsInCirculation - amount);
+      vault.chipsInCirculation = Math.max(newSupply, 0);
+
+      // Optional: refresh the on-chain backing snapshot
+      try {
+        const onChain = await getOnChainCasinoUsdcBalance();
+        vault.lastUsdcBalance = onChain;
+      } catch (e) {
+        console.warn("[burnUserChips] Failed to refresh on-chain USDC", e);
+      }
+
+      await user.save({ session });
+      await vault.save({ session });
+    });
+  } finally {
+    await session.endSession();
+  }
+}
