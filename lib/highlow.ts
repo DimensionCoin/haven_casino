@@ -21,7 +21,7 @@ export type HighLowOutcome = {
   maxWinCap: number;
   cappedByPool: boolean;
 
-  // 🔥 NEW: ladder-style info
+  // 🔥 Ladder-style info
   potBefore: number; // the "run" amount you staked on THIS guess
   potAfter: number; // the new ladder pot if you keep going (0 on loss)
 };
@@ -64,10 +64,9 @@ const HIGHLOW_MAX_SINGLE_WIN_POOL_PCT = 0.9;
 
 /**
  * Payout multiplier for a correct guess.
- * Example: 1.9x → user nets +0.9 per correct guess (before rake).
  */
 const HIGHLOW_PAYOUT_MULTIPLIER = Number(
-  process.env.NEXT_PUBLIC_HIGHLOW_PAYOUT_MULTIPLIER ?? "1.9"
+  process.env.NEXT_PUBLIC_HIGHLOW_PAYOUT_MULTIPLIER ?? "1.5"
 );
 
 /* ============================================================================
@@ -121,8 +120,8 @@ export async function getHighLowMaxWinCap(): Promise<number> {
    ============================================================================ */
 
 export function getHighLowInitialNumber(): number {
-  // 🔥 1–100 range
-  return randomIntInclusive(1, 100);
+  // 🔥 First card: force 45–65
+  return randomIntInclusive(45, 65);
 }
 
 /* ============================================================================
@@ -138,9 +137,20 @@ export function getHighLowInitialNumber(): number {
 export async function playHighLow(
   betAmount: number,
   direction: HighLowDirection,
-  initialNumberOverride?: number
+  initialNumberOverride?: number,
+  /**
+   * 🔥 true = this is the VERY FIRST flip after the initial card
+   * in the current ladder run → force nextNumber into 45–65.
+   * false/undefined = normal behaviour (nextNumber 1–100).
+   */
+  isFirstFlip: boolean = false
 ): Promise<HighLowOutcome> {
-  const bet = Math.max(0, betAmount);
+  if (!Number.isFinite(betAmount)) {
+    throw new Error("betAmount must be a finite number");
+  }
+
+  // We treat betAmount as the ladder pot for this guess.
+  const bet = roundToCents(Math.max(0, betAmount));
 
   if (bet <= 0) {
     throw new Error("betAmount must be > 0");
@@ -151,8 +161,12 @@ export async function playHighLow(
       ? initialNumberOverride
       : getHighLowInitialNumber();
 
-  // 🔥 Next number also between 1 and 100
-  const nextNumber = randomIntInclusive(1, 100);
+  // 🔥 Logic change:
+  // - If this is the FIRST flip -> 45–65
+  // - Otherwise -> 1–100
+  const nextNumber = isFirstFlip
+    ? randomIntInclusive(45, 65)
+    : randomIntInclusive(1, 100);
 
   const isHigher = nextNumber > initialNumber;
   const isLower = nextNumber < initialNumber;
@@ -164,13 +178,13 @@ export async function playHighLow(
       (direction === "lower" && isLower));
   const isLoss = !isPush && !isWin;
 
-  let rawPayout = 0;
+  let rawPayout: number;
 
   if (isPush) {
-    // Tie → keep pot as-is (before rake you've already taken).
+    // Tie → keep pot as-is (ladder continues unchanged).
     rawPayout = bet;
   } else if (isWin) {
-    // Correct guess: multiplier * pot
+    // Correct guess
     rawPayout = bet * HIGHLOW_PAYOUT_MULTIPLIER;
   } else {
     // Loss → ladder pot nuked
@@ -181,13 +195,14 @@ export async function playHighLow(
 
   const maxWinCap = await getHighLowMaxWinCap();
 
-  const finalPayout =
+  const cappedPayout =
     maxWinCap > 0 ? Math.min(rawPayout, roundToCents(maxWinCap)) : rawPayout;
 
+  const finalPayout = roundToCents(cappedPayout);
   const cappedByPool = finalPayout < rawPayout;
 
   const potBefore = bet;
-  const potAfter = finalPayout; // this is the new ladder pot the frontend should use for the next guess
+  const potAfter = finalPayout; // new ladder pot the frontend should use for the next guess
 
   return {
     initialNumber,
@@ -197,10 +212,9 @@ export async function playHighLow(
     isLoss,
     isPush,
     rawPayout,
-    finalPayout: roundToCents(finalPayout),
+    finalPayout,
     maxWinCap: roundToCents(maxWinCap),
     cappedByPool,
-
     potBefore,
     potAfter,
   };

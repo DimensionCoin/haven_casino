@@ -1,7 +1,13 @@
 // app/(pages)/highlow/page.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -78,7 +84,7 @@ type RoundResult = {
   balanceAfter: number;
 };
 
-const BET_PRESETS = [0.1, 0.5, 1, 5, 10];
+const BET_PRESETS = [0.25, 0.5, 1, 2];
 
 function roundToCents(n: number): number {
   return Math.round(n * 100) / 100;
@@ -91,7 +97,7 @@ const HighLowPage: React.FC = () => {
   const walletAddress = address ?? user?.walletAddress ?? null;
 
   // Base bet (what they choose before starting a ladder)
-  const [betAmount, setBetAmount] = useState<number>(1);
+  const [betAmount, setBetAmount] = useState<number>(0.5);
 
   // Ladder pot (what they’re building & can cash out)
   const [ladderPot, setLadderPot] = useState<number>(0);
@@ -120,7 +126,46 @@ const HighLowPage: React.FC = () => {
 
   const [turboMode, setTurboMode] = useState(false);
 
+  // 🔥 Track whether we've already made the first guess in this ladder run
+  const [hasMadeFirstGuess, setHasMadeFirstGuess] = useState(false);
+
   const hasCurrentCard = currentNumber !== null;
+
+  /* ===========================================================================
+     SOUND EFFECTS
+     =========================================================================== */
+
+  const flipSoundRef = useRef<HTMLAudioElement | null>(null);
+  const clickSoundRef = useRef<HTMLAudioElement | null>(null);
+  const winSoundRef = useRef<HTMLAudioElement | null>(null);
+  const lossSoundRef = useRef<HTMLAudioElement | null>(null);
+  const cashoutSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    flipSoundRef.current = new Audio("/sounds/highlow-flip.mp3");
+    clickSoundRef.current = new Audio("/sounds/highlow-click.mp3");
+    winSoundRef.current = new Audio("/sounds/highlow-win.mp3");
+    lossSoundRef.current = new Audio("/sounds/highlow-loss.mp3");
+    cashoutSoundRef.current = new Audio("/sounds/highlow-cashout.mp3");
+
+    if (flipSoundRef.current) flipSoundRef.current.volume = 0.45;
+    if (clickSoundRef.current) clickSoundRef.current.volume = 0.4;
+    if (winSoundRef.current) winSoundRef.current.volume = 0.7;
+    if (lossSoundRef.current) lossSoundRef.current.volume = 0.75;
+    if (cashoutSoundRef.current) cashoutSoundRef.current.volume = 0.7;
+  }, []);
+
+  const playSound = (audio: HTMLAudioElement | null) => {
+    if (!audio) return;
+    try {
+      audio.currentTime = 0;
+      void audio.play();
+    } catch {
+      // ignore autoplay issues
+    }
+  };
 
   const canGuess = useMemo(
     () =>
@@ -163,7 +208,7 @@ const HighLowPage: React.FC = () => {
   );
 
   /* ===========================================================================
-     START RUN: take bet (server-side rake) & deal first number (1–100)
+     START RUN: take bet (server-side rake) & deal first number (45–65)
      =========================================================================== */
 
   const handleStartRun = useCallback(async () => {
@@ -183,6 +228,9 @@ const HighLowPage: React.FC = () => {
     }
 
     try {
+      // click sound on start
+      playSound(clickSoundRef.current);
+
       setIsPlaying(true);
       setIsRevealing(false);
       setRunActive(false);
@@ -195,7 +243,7 @@ const HighLowPage: React.FC = () => {
       const res = await fetch("/api/highlow/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // We send betAmount now so the API can apply 1% rake once.
+        // We send betAmount now so the API can apply rake once.
         body: JSON.stringify({ walletAddress, betAmount }),
       });
 
@@ -219,7 +267,13 @@ const HighLowPage: React.FC = () => {
       setRevealStep(1);
       setRunActive(true);
 
-      // Sync chips with backend (once you wire bet+rake into /start)
+      // fresh run: no guesses yet
+      setHasMadeFirstGuess(false);
+
+      // flip sound when first card shows
+      playSound(flipSoundRef.current);
+
+      // Sync chips with backend
       refreshVirtualBalance().catch((err) =>
         console.warn("[HighLow] refreshVirtualBalance error (start)", err)
       );
@@ -229,15 +283,16 @@ const HighLowPage: React.FC = () => {
     } finally {
       setIsPlaying(false);
     }
-  }, [walletAddress, betAmount, virtualBalance, refreshVirtualBalance]);
+  }, [
+    walletAddress,
+    betAmount,
+    virtualBalance,
+    refreshVirtualBalance,
+    playSound,
+  ]);
 
   /* ===========================================================================
      GUESS STEP: use current ladderPot as "pot" for this guess.
-     - If win/push → potAfter > 0 and we keep the run alive.
-     - If loss     → potAfter = 0 and run ends.
-     - Card flow:
-        1) Show new card in NEXT
-        2) After delay → new card becomes CURRENT, NEXT resets to "?"
      =========================================================================== */
 
   const handleGuess = useCallback(async () => {
@@ -264,7 +319,13 @@ const HighLowPage: React.FC = () => {
 
     const potBefore = roundToCents(ladderPot);
 
+    // 🔥 first guess in this run → tell backend to constrain to 45–65
+    const isFirstFlip = !hasMadeFirstGuess;
+
     try {
+      // click sound when locking guess
+      playSound(clickSoundRef.current);
+
       setIsPlaying(true);
       setIsRevealing(true);
 
@@ -280,6 +341,7 @@ const HighLowPage: React.FC = () => {
           betAmount: potBefore, // treat ladder pot as the stake for this step
           direction,
           initialNumber: currentNumber,
+          isFirstFlip, // 👈 backend forwards this into playHighLow(...)
         }),
       });
 
@@ -294,6 +356,11 @@ const HighLowPage: React.FC = () => {
         }
         setIsRevealing(false);
         return;
+      }
+
+      // After a successful guess, we've used up the "first flip" for this run
+      if (!hasMadeFirstGuess) {
+        setHasMadeFirstGuess(true);
       }
 
       const initFromServer =
@@ -319,20 +386,27 @@ const HighLowPage: React.FC = () => {
       setNextNumber(nextFromServer);
       setRevealStep(2);
 
+      // flip sound as next card appears
+      playSound(flipSoundRef.current);
+
       // Update stats
       setTotalRounds((prev) => prev + 1);
 
-      // Session profit is a bit fuzzy with ladder style, but roughly:
+      // Session profit (roughly)
       const profitDelta = potAfter - potBefore;
       setTotalProfit((prev) => roundToCents(prev + profitDelta));
 
       if (isWin) {
+        // win sound
+        playSound(winSoundRef.current);
         setWinStreak((prev) => {
           const newStreak = prev + 1;
           setBestStreak((best) => Math.max(best, newStreak));
           return newStreak;
         });
       } else if (isLoss) {
+        // loss sound
+        playSound(lossSoundRef.current);
         setWinStreak(0);
       }
 
@@ -410,6 +484,8 @@ const HighLowPage: React.FC = () => {
     turboMode,
     roundCounter,
     refreshVirtualBalance,
+    playSound,
+    hasMadeFirstGuess,
   ]);
 
   /* ===========================================================================
@@ -427,6 +503,9 @@ const HighLowPage: React.FC = () => {
     }
 
     try {
+      // click sound on cashout press
+      playSound(clickSoundRef.current);
+
       setIsPlaying(true);
 
       const res = await fetch("/api/highlow/cashout", {
@@ -450,9 +529,12 @@ const HighLowPage: React.FC = () => {
 
       toast.success(`You cashed out ${paid.toFixed(2)} chips 💰`);
 
+      // cashout sound after success
+      playSound(cashoutSoundRef.current);
+
       // Update profit stat (approx: payout - base bet)
       setTotalProfit((prev) =>
-        roundToCents(prev + paid - betAmount > 0 ? paid - betAmount : 0)
+        roundToCents(prev + (paid - betAmount > 0 ? paid - betAmount : 0))
       );
 
       // Reset ladder state
@@ -462,6 +544,7 @@ const HighLowPage: React.FC = () => {
       setNextNumber(null);
       setRevealStep(0);
       setDirection(null);
+      setHasMadeFirstGuess(false);
 
       // Sync chips
       refreshVirtualBalance().catch((err) =>
@@ -473,15 +556,17 @@ const HighLowPage: React.FC = () => {
     } finally {
       setIsPlaying(false);
     }
-  }, [walletAddress, runActive, ladderPot, betAmount, refreshVirtualBalance]);
+  }, [
+    walletAddress,
+    runActive,
+    ladderPot,
+    betAmount,
+    refreshVirtualBalance,
+    playSound,
+  ]);
 
   /* ===========================================================================
      Keyboard shortcuts
-     - H = higher
-     - L = lower
-     - Space:
-         - if no run → start
-         - else → guess if canGuess
      =========================================================================== */
 
   useEffect(() => {
@@ -571,8 +656,8 @@ const HighLowPage: React.FC = () => {
               </span>
             </h1>
             <p className="text-xs text-zinc-500">
-              Pick a bet, get a number (1–100), then ladder your guesses higher
-              or lower. Cash out before you bust.
+              First card is mid-range (45–65). Guess higher or lower, build your
+              ladder, and cash out before you bust.
             </p>
           </div>
         </div>
