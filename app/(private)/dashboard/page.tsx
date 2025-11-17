@@ -35,7 +35,7 @@ const GAME_VISUALS: Record<
     gradient: "from-slate-700 to-slate-900",
   },
 
-  crash: {
+  plinko: {
     icon: "📈",
     gradient: "from-purple-700 to-fuchsia-500",
   },

@@ -5,7 +5,7 @@ export type CasinoGameId =
   | "roulette"
   | "highlow"
   | "cointoss"
-  | "crash";
+  | "plinko";
 
 
 export type CasinoGameConfig = {
@@ -56,10 +56,10 @@ export const CASINO_GAMES: CasinoGameConfig[] = [
     enabled: true,
   },
   {
-    id: "crash",
-    name: "Crash",
+    id: "plinko",
+    name: "Plinko",
     description: "Ride the multiplier and cash out before it crashes.",
-    route: "/crash",
+    route: "/plinko",
     enabled: true,
   },
 ];
